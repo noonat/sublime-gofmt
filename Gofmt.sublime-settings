@@ -1,0 +1,6 @@
+{
+  "cmds": [
+    ["gofmt", "-e", "-s"]
+  ],
+  "format_on_save": true
+}

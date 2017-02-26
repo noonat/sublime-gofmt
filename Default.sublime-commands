@@ -1,0 +1,6 @@
+[
+  {
+    "caption": "Gofmt: Format this file",
+    "command": "gofmt"
+  }
+]

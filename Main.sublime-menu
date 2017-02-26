@@ -1,0 +1,38 @@
+[
+  {
+    "mnemonic": "n",
+    "caption": "Preferences",
+    "id": "preferences",
+    "children": [
+      {
+        "mnemonic": "P",
+        "caption": "Package Settings",
+        "id": "package-settings",
+        "children": [
+          {
+            "caption": "Gofmt",
+            "children": [
+              {
+                "caption": "Settings – Default",
+                "command": "open_file",
+                "args": {
+                  "file": "${packages}/Gofmt/Gofmt.sublime-settings"
+                },
+              },
+              {
+                "caption": "Settings – User",
+                "command": "open_file",
+                "args": {
+                  "file": "${packages}/User/Gofmt.sublime-settings"
+                },
+              },
+              {
+                "caption": "-"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]
