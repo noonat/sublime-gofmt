@@ -12,7 +12,6 @@ import sublime_plugin
 import golangconfig
 
 
-REQUIRED_VARS = ['GOPATH']
 OPTIONAL_VARS = [
     'GO386',
     'GOARCH',
@@ -25,6 +24,11 @@ OPTIONAL_VARS = [
     'GOROOT',
     'GOROOT_FINAL',
 ]
+REQUIRED_VARS = ['GOPATH']
+
+ERROR_TEMPLATE = """
+<div><b>{row}:</b> {text}</div>
+"""
 
 is_windows = platform.system() == 'Windows'
 startup_info = None
@@ -32,8 +36,13 @@ if is_windows:
     startup_info = subprocess.STARTUPINFO()
     startup_info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
 
-error_re = re.compile(r'.*:(\d+):(\d+):')
-settings = sublime.load_settings('Gofmt.sublime-settings')
+settings = None
+view_errors = {}
+
+
+def plugin_loaded():
+    global settings
+    settings = sublime.load_settings('Gofmt.sublime-settings')
 
 
 class Command(object):
@@ -76,6 +85,48 @@ class Command(object):
         return stdout, stderr, proc.returncode
 
 
+class Error(object):
+
+    line_re = re.compile(r'\A.*:(\d+):(\d+):\s+(.*)\Z')
+
+    def __init__(self, text, region, row, col, filename):
+        self.text = text
+        self.region = region
+        self.row = row
+        self.col = col
+        self.filename = filename
+
+    @classmethod
+    def parse_stderr(cls, stderr, region, view):
+        errors = []
+        region_row, region_col = view.rowcol(region.begin())
+        if not isinstance(stderr, str):
+            stderr = stderr.decode('utf-8')
+        fn = os.path.basename(view.file_name())
+        stderr = stderr.replace('<standard input>', fn)
+        for raw_text in stderr.splitlines():
+            match = cls.line_re.match(raw_text)
+            if not match:
+                continue
+            row = int(match.group(1)) - 1
+            col = int(match.group(2)) - 1
+            text = match.group(3)
+            if row == 0:
+                col += region_col
+            row += region_row
+            a = view.text_point(row, col)
+            b = view.line(a).end()
+            errors.append(Error(text, sublime.Region(a, b), row, col, fn))
+        return errors
+
+
+class FormatterError(Exception):
+
+    def __init__(self, errors):
+        super(FormatterError, self).__init__('error running formatter')
+        self.errors = errors
+
+
 class Formatter(object):
 
     """Formatter is used to format Go code.
@@ -89,8 +140,8 @@ class Formatter(object):
         if self.encoding == 'Undefined':
             self.encoding = 'utf-8'
         self.window = view.window()
-        self.cmds = [Command(cmd, self.view, self.window)
-                     for cmd in settings.get('cmds', ['gofmt', '-e', '-s'])]
+        cmds = settings.get('cmds', ['gofmt', '-e', '-s']) or []
+        self.cmds = [Command(cmd, self.view, self.window) for cmd in cmds]
 
     def format(self, region):
         """Format the code in the given region.
@@ -107,8 +158,9 @@ class Formatter(object):
         for cmd in self.cmds:
             code, stderr, return_code = cmd.run(code)
             if stderr or return_code != 0:
-                self._show_errors(return_code, stderr, cmd, region)
-                return None
+                errors = Error.parse_stderr(stderr, region, self.view)
+                self._show_errors(errors, return_code, cmd)
+                raise FormatterError(errors)
         self._hide_error_panel()
         return code.decode(self.encoding)
 
@@ -121,7 +173,7 @@ class Formatter(object):
         """Hide any previously displayed error panel."""
         self.window.run_command('hide_panel', {'panel': 'output.gofmt'})
 
-    def _show_errors(self, return_code, stderr, cmd, region):
+    def _show_errors(self, errors, return_code, cmd):
         """Show errors from a failed command.
 
         :param int return_code: Exit code of the command.
@@ -131,51 +183,31 @@ class Formatter(object):
         """
         self.view.set_status('gofmt', '{} failed with return code {}'.format(
             cmd.name, return_code))
-        if not stderr:
-            return
-        if not isinstance(stderr, str):
-            stderr = stderr.decode('utf-8')
-        self._show_error_panel(stderr)
-        self._show_error_regions(stderr, region)
+        self._show_error_panel(errors)
+        self._show_error_regions(errors)
 
-    def _show_error_regions(self, stderr, region):
+    def _show_error_regions(self, errors):
         """Mark the regions which had errors.
 
         :param str stderr: Stderr output of the command.
         :param sublime.Region: Formatted region.
         """
-        region_row, region_col = self.view.rowcol(region.begin())
-        regions = []
-        for error in stderr.splitlines():
-            match = error_re.match(error)
-            if not match:
-                continue
-            row, col = int(match.group(1)) - 1, int(match.group(2)) - 1
-            if row == 0:
-                col += region_col
-            row += region_row
-            a = self.view.text_point(row, col)
-            b = self.view.line(a).end()
-            regions.append(sublime.Region(a, b))
-        if regions:
-            self.view.add_regions(
-                'gofmt', regions, 'invalid.illegal', 'dot',
-                (sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE |
-                 sublime.DRAW_SQUIGGLY_UNDERLINE | sublime.PERSISTENT))
+        self.view.add_regions(
+            'gofmt', [e.region for e in errors], 'invalid.illegal', 'dot',
+            (sublime.DRAW_NO_FILL | sublime.DRAW_NO_OUTLINE |
+             sublime.DRAW_SQUIGGLY_UNDERLINE))
 
-    def _show_error_panel(self, stderr):
+    def _show_error_panel(self, errors):
         """Show the stderr of a failed command in an output panel.
 
         :param str stderr: Stderr output of the command.
         """
-        fn = os.path.basename(self.view.file_name())
+        characters = '\n'.join([e.text for e in errors])
         p = self.window.create_output_panel('gofmt')
         p.set_scratch(True)
         p.run_command('select_all')
         p.run_command('right_delete')
-        p.run_command('insert',
-                      {'characters': stderr.replace('<standard input>', fn)})
-        self.window.run_command('show_panel', {'panel': 'output.gofmt'})
+        p.run_command('insert', {'characters': characters})
 
 
 def is_go_source(view):
@@ -194,13 +226,15 @@ def run_formatter(edit, view, regions):
     :param sublime.View: View containing the code to be formatted.
     :param sublime.Region: Regions of the view to format.
     """
+    global view_errors
+    if view.id() in view_errors:
+        del view_errors[view.id()]
     try:
         formatter = Formatter(view)
         for region in regions:
-            formatted_code = formatter.format(region)
-            if formatted_code is None:
-                return
-            view.replace(edit, region, formatted_code)
+            view.replace(edit, region, formatter.format(region))
+    except FormatterError as e:
+        view_errors[view.id()] = e.errors
     except Exception:
         sublime.error_message(traceback.format_exc())
 
@@ -214,6 +248,27 @@ class GofmtCommand(sublime_plugin.TextCommand):
 
 
 class GofmtListener(sublime_plugin.EventListener):
+
+    def _show_errors_for_row(self, view, row, point):
+        if not is_go_source(view):
+            return
+        errors = view_errors.get(view.id())
+        if not errors:
+            return
+        row_errors = [e for e in errors if e.row == row]
+        if not row_errors:
+            return
+        html = '\n'.join([ERROR_TEMPLATE.format(row=e.row + 1, text=e.text)
+                          for e in row_errors])
+        view.show_popup(html, flags=sublime.HIDE_ON_MOUSE_MOVE_AWAY,
+                        location=point, max_width=600)
+
+    def on_hover(self, view, point, hover_zone):
+        print(view, point, hover_zone == sublime.HOVER_TEXT)
+        if hover_zone != sublime.HOVER_TEXT:
+            return
+        row, _ = view.rowcol(point)
+        self._show_errors_for_row(view, row, point)
 
     def on_pre_save(self, view):
         if not settings.get('format_on_save', True):
