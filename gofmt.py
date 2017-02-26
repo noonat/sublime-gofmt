@@ -264,7 +264,6 @@ class GofmtListener(sublime_plugin.EventListener):
                         location=point, max_width=600)
 
     def on_hover(self, view, point, hover_zone):
-        print(view, point, hover_zone == sublime.HOVER_TEXT)
         if hover_zone != sublime.HOVER_TEXT:
             return
         row, _ = view.rowcol(point)
