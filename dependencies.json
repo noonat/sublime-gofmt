@@ -1,6 +1,7 @@
 {
   "*": {
     "*": [
+      "shellenv",
       "golangconfig"
     ]
   }
