@@ -230,9 +230,17 @@ def run_formatter(edit, view, regions):
     if view.id() in view_errors:
         del view_errors[view.id()]
     try:
+        prev_position = view.viewport_position()
+
         formatter = Formatter(view)
         for region in regions:
             view.replace(edit, region, formatter.format(region))
+
+        # Only works on the main thread, hence the timer. Credit:
+        # https://github.com/liuhewei/gotools-sublime/blob/2c44f84024f9fd27ca5c347cab080b80397a32c2/gotools_format.py#L77
+        restore = lambda: view.set_viewport_position(prev_position, animate=False)
+        sublime.set_timeout(restore, 0)
+
     except FormatterError as e:
         view_errors[view.id()] = e.errors
     except Exception:
