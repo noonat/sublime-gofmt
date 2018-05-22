@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.4
+
+- When running `goimports`, use the current file's directory as PWD. This prevents it from occassionally failing to add imports.
+
 ## v0.1.3
 
 - Saves and restores the scroll position to avoid the view jumping.
