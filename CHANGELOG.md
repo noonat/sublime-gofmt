@@ -2,7 +2,7 @@
 
 ## v0.1.4
 
-- When running `goimports`, use the current file's directory as PWD. This prevents it from occassionally failing to add imports.
+- When running `goimports`, use the current file's directory as PWD. This prevents it from occasionally failing to add imports.
 
 ## v0.1.3
 
