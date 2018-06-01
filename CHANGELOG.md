@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.5
+
+- The palette command now works in anonymous buffers.
+
 ## v0.1.4
 
 - When running `goimports`, use the current file's directory as PWD. This prevents it from occasionally failing to add imports.

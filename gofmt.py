@@ -123,8 +123,10 @@ class Error(object):
         region_row, region_col = view.rowcol(region.begin())
         if not isinstance(stderr, str):
             stderr = stderr.decode('utf-8')
-        fn = os.path.basename(view.file_name())
-        stderr = stderr.replace('<standard input>', fn)
+        fn = '<anonymous buffer>'
+        if view.file_name():
+            fn = os.path.basename(view.file_name())
+            stderr = stderr.replace('<standard input>', fn)
         for raw_text in stderr.splitlines():
             match = cls.line_re.match(raw_text)
             if not match:
