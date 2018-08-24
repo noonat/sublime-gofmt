@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.6
+
+- When formatting doesn't change the code, don't modify the buffer to avoid wrecking "undo" (⌘⇪Z or ^⇪Z).
+
+- The palette command is enabled only when editing a Go buffer.
+
 ## v0.1.5
 
 - The palette command now works in anonymous buffers.

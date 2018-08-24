@@ -256,8 +256,16 @@ def run_formatter(edit, view, regions):
         prev_position = view.viewport_position()
 
         formatter = Formatter(view)
+
+        # Note: after pressing ⌘Z or ^Z to "go back" in the editing history, the
+        # "forward" history is kept until the next change. Calling
+        # `view.replace` always erases the forward history, even if the buffer
+        # hasn't changed. Manually checking for changes avoids this problem and
+        # makes the plugin nicer to use.
         for region in regions:
-            view.replace(edit, region, formatter.format(region))
+            replacement = formatter.format(region)
+            if view.substr(region) != replacement:
+                view.replace(edit, region, replacement)
 
         # Only works on the main thread, hence the timer. Credit:
         # https://github.com/liuhewei/gotools-sublime/blob/2c44f84024f9fd27ca5c347cab080b80397a32c2/gotools_format.py#L77
@@ -271,10 +279,10 @@ def run_formatter(edit, view, regions):
 
 
 class GofmtCommand(sublime_plugin.TextCommand):
+    def is_enabled(self):
+        return is_go_source(self.view)
 
     def run(self, edit):
-        if not is_go_source(self.view):
-            return
         run_formatter(edit, self.view, [sublime.Region(0, self.view.size())])
 
 
