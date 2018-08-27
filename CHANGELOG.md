@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.7
+
+- Corrected working directory handling. After "guessing" the cwd from the current file or open folders, the subprocess is now correctly invoked from this cwd. This ensures that `goimports` works more reliably, preventing some edge-case issues.
+
 ## v0.1.6
 
 - When formatting doesn't change the code, don't modify the buffer to avoid wrecking "undo" (⌘⇪Z or ^⇪Z).
