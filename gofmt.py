@@ -45,23 +45,11 @@ def plugin_loaded():
     settings = sublime.load_settings('Gofmt.sublime-settings')
 
 
-"""
-In order for goimports to work properly, it must be run from the file's
-directory. By default, env['PWD'] is the directory of the Sublime Text binary,
-which sometimes causes goimports to produce incorrect output. This should be
-refreshed just before running the command, because files can be renamed, and
-possibly moved (?).
-
-TODO: it this golangconfig's job?
-"""
-def env_with_pwd(env, view):
-    out = {}
-    out.update(env)
+def guess_cwd(view):
     if view.file_name():
-        out['PWD'] = os.path.dirname(view.file_name())
+        return os.path.dirname(view.file_name())
     elif len(view.window().folders()):
-        out['PWD'] = view.window().folders()[0]
-    return out
+        return view.window().folders()[0]
 
 
 class Command(object):
@@ -96,10 +84,21 @@ class Command(object):
             of the process.
         """
 
-        env = env_with_pwd(self.env, self.view)
+        # The cwd is necessary for correct operation of `goimports`. The PWD is
+        # added just in case. It's refreshed here rather than in the
+        # constructor, because buffers may be moved between windows.
+        cwd = guess_cwd(self.view)
+        self.env['PWD'] = cwd
+
         proc = subprocess.Popen(
-            [self.path], stdin=subprocess.PIPE, stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE, env=env, startupinfo=startup_info)
+            [self.path],
+            stdin=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            env=self.env,
+            cwd=cwd,
+            startupinfo=startup_info,
+        )
         if isinstance(stdin, str):
             stdin = stdin.encode()
         stdout, stderr = proc.communicate(stdin)
