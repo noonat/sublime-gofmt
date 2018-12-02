@@ -91,7 +91,7 @@ class Command(object):
         self.env['PWD'] = cwd
 
         proc = subprocess.Popen(
-            [self.path],
+            [self.path] + self.args,
             stdin=subprocess.PIPE,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
