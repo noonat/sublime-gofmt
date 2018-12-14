@@ -72,6 +72,7 @@ class Command(object):
         self.window = window
         self.name = cmd[0]
         self.args = cmd[1:]
+        self.filename = window.active_view().file_name()
         self.path, self.env = golangconfig.subprocess_info(
             self.name, REQUIRED_VARS, OPTIONAL_VARS, self.view,
             self.window)
@@ -90,18 +91,17 @@ class Command(object):
         cwd = guess_cwd(self.view)
         self.env['PWD'] = cwd
 
-        proc = subprocess.Popen(
-            [self.path],
-            stdin=subprocess.PIPE,
+        args = [self.path] + self.args + [self.filename]
+        print("sublime-format running: ", " ".join(args))
+        proc = subprocess.Popen(args,
             stderr=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            env=self.env,
-            cwd=cwd,
+            env=self.env, cwd=cwd,
             startupinfo=startup_info,
         )
-        if isinstance(stdin, str):
-            stdin = stdin.encode()
-        stdout, stderr = proc.communicate(stdin)
+        proc.wait()
+        stdout = proc.stdout.read()
+        stderr = proc.stderr.read()
         return stdout, stderr, proc.returncode
 
 
